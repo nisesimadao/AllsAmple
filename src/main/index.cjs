@@ -7,6 +7,7 @@ const { SiteNetwork } = require('./network.cjs');
 const { LocalFolders } = require('./providers/local.cjs');
 const { BrowserAutomation } = require('./automation/runtime.cjs');
 const { AudioCache, copyUnique, extension, exportFilename } = require('./library.cjs');
+const { DragFiles } = require('./drag-files.cjs');
 const { JsonStore } = require('./persistence.cjs');
 const { cleanState } = require('./ui-state.cjs');
 const { ApiKeys, validKey } = require('./api-keys.cjs');
@@ -68,7 +69,7 @@ app.whenReady().then(async () => {
     await persistCatalog(); if (ui) await uiStore.write(ui); await local.store.flush(); await cacheStore.flush(); await apiKeys.store.flush();
   };
   const staticAudio = new SiteNetwork();
-  const cache = new AudioCache({ request: async (url, options) => { const provider = providers.find(provider => provider.id === options.sample?.site); return provider?.download ? provider.download(options.sample, options) : staticAudio.request(url, options); }, promote: (sample, priority) => providers.find(provider => provider.id === sample.site)?.promote?.(sample, priority) }, path.join(dataDir, 'audio'), { maxBytes: cacheLimits.has(cacheOptions?.maxBytes) ? cacheOptions.maxBytes : DEFAULT_LIMIT, onEvicted: id => { if (window && !window.isDestroyed()) window.webContents.send('cache-evicted', id); } });
+  const cache = new AudioCache({ request: async (url, options) => { const provider = providers.find(provider => provider.id === options.sample?.site); return provider?.download ? provider.download(options.sample, options) : staticAudio.request(url, options); }, promote: (sample, priority) => { const provider = providers.find(provider => provider.id === sample.site); if (provider?.promote) provider.promote(sample, priority); else staticAudio.promote(sample, priority); } }, path.join(dataDir, 'audio'), { maxBytes: cacheLimits.has(cacheOptions?.maxBytes) ? cacheOptions.maxBytes : DEFAULT_LIMIT, onEvicted: id => { if (window && !window.isDestroyed()) window.webContents.send('cache-evicted', id); } });
   let playbackPins = [];
   function updateCachePins() { cache.policy.setPins([...playbackPins, ...(ui?.compareIds || [])]); }
   updateCachePins();
@@ -94,7 +95,7 @@ app.whenReady().then(async () => {
   function sampleFor(id) { const sample = samples.get(id); if (!sample) throw new Error('素材が見つかりません。検索し直してください。'); return sample; }
   function handle(name, fn) { ipcMain.handle(name, async (event, ...args) => { trusted(event); try { return { ok: true, value: await fn(...args) }; } catch (error) { return { ok: false, error: error.message }; } }); }
   handle('bootstrap', async () => ({ ui, samples: [...samples.values()], folders: local.folders }));
-  handle('save-state', async state => { ui = cleanState(state); updateCachePins(); await uiStore.write(ui); await persistCatalog(); return ui; });
+  handle('save-state', async state => { ui = cleanState(state); updateCachePins(); await uiStore.write(ui); return ui; });
   handle('cache-pins', async ids => { if (!Array.isArray(ids) || ids.length > 10 || ids.some(id => typeof id !== 'string' || !samples.has(id))) throw new Error('読み込み中の素材を確認してください'); playbackPins = [...new Set(ids)]; updateCachePins(); return null; });
   let keyRevision = 0;
   handle('api-key-status', async () => { await keysReady; return apiKeys.status(); });
@@ -140,7 +141,8 @@ app.whenReady().then(async () => {
     const result = { duration: metadata.duration ?? measured.duration, channels: metadata.channels ?? measured.channels, sampleRate: metadata.sampleRate ?? null };
     Object.assign(sample, result); scheduleCatalog(); return { ...result, license: sample.license, audioUrl: sample.audioUrl };
   });
-  handle('prepare', async (id, intent) => { const sample = sampleFor(id); if (sample.site === 'local' && sample.size > 128 * 1024 * 1024) throw new Error('試聴できるローカル音源は128MBまでです。保存・パスコピーは利用できます。'); if (sample.site === 'local') await fileFor(sample); else await cache.prepare(sample, { priority: intent === 'prefetch' ? 0 : 100 }); return `allsample://app/audio/${id}`; });
+  let audioPriority = 100;
+  handle('prepare', async (id, intent) => { const sample = sampleFor(id); if (sample.site === 'local' && sample.size > 128 * 1024 * 1024) throw new Error('試聴できるローカル音源は128MBまでです。保存・パスコピーは利用できます。'); if (sample.site === 'local') await fileFor(sample); else await cache.prepare(sample, { priority: intent === 'prefetch' ? 0 : ++audioPriority }); return `allsample://app/audio/${id}`; });
   async function defaultExport(id, downloadsOnly = false) {
     const sample = sampleFor(id);
     if (sample.site === 'local' && !downloadsOnly) return local.file(sample);
@@ -173,9 +175,14 @@ app.whenReady().then(async () => {
   });
   handle('copy-credit', async id => { clipboard.writeText(sampleFor(id).license.credit); });
   const dragIcon = nativeImage.createFromPath(appIconPath).resize({ width: 32, height: 32, quality: 'best' });
+  const dragFiles = new DragFiles({ acquire: acquireFile, folder: sample => path.join(app.getPath('downloads'), sample.siteName) });
+  handle('prepare-drag', async (id, intent) => { await dragFiles.prepare(sampleFor(id), intent === 'prefetch' ? 0 : ++audioPriority); return true; });
   ipcMain.on('start-drag', (event, id) => {
-    try { trusted(event); const sample = sampleFor(id); const file = sample.site === 'local' ? sample.localPath : path.join(dataDir, 'audio', `${sample.id}.${extension(sample)}`); require('node:fs').accessSync(file); if (sample.site !== 'local') { const release = cache.policy.hold(id); setTimeout(release, 600000).unref(); } event.sender.startDrag({ file, icon: dragIcon }); }
-    catch { if (!event.sender.isDestroyed()) event.sender.send('action-error', '音源を読み込んでからドラッグしてください。'); }
+    try {
+      trusted(event); const sample = sampleFor(id);
+      const file = dragFiles.start(sample, item => event.sender.startDrag(item), dragIcon);
+      if (sample.site !== 'local') exportsById.set(id, { file, revision: null });
+    } catch { if (!event.sender.isDestroyed()) event.sender.send('action-error', '音源の準備ができていません。行を選択して、もう一度ドラッグしてください。'); }
   });
   await createWindow();
   updates.start();

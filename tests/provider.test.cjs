@@ -22,3 +22,17 @@ test('Maou uses observed WAV link before MP3 and retains attribution requirement
 test('On-Jin conditional terms never become unrestricted commercial or no-credit', () => { const [item] = parseOnjin('<div class="selistwida"><a href="listshow.php?title=rain">雨</a><a href="ag/rain.mp3" download="雨.mp3">DL</a><div class="selist">備考 ・・・ ループ</div></div>', 'https://on-jin.com/sound/kan.php'); assert.equal(item.license.category, 'orange'); assert.equal(item.license.commercial, null); assert.equal(item.license.attribution, null); assert.equal(item.loop, true); });
 const { mediaResponse } = require('../src/main/media-response.cjs');
 test('cached audio serves bounded and suffix byte ranges for seeking', async t => { const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'allsample-range-')); t.after(() => fs.rm(dir, { recursive: true, force: true })); const file = path.join(dir, 'test.mp3'); await fs.writeFile(file, '0123456789'); const response = await mediaResponse(file, 'bytes=2-5'); assert.equal(response.status, 206); assert.equal(response.headers.get('content-range'), 'bytes 2-5/10'); assert.equal(await response.text(), '2345'); assert.equal(await (await mediaResponse(file, 'bytes=-3')).text(), '789'); assert.equal((await mediaResponse(file, 'bytes=20-')).status, 416); });
+test('On-Jin refreshes rotated media directories from the same observed row on 404 without changing material identity', async () => {
+  const { Onjin } = require('../src/main/providers/onjin.cjs');
+  const html = '<div class="selistwida"><a href="listshow.php?pagename=kan&title=rain">雨</a><a href="ag/new/se/d/rain.mp3" download="雨.mp3">DL</a></div>';
+  const page = 'https://on-jin.com/sound/kan.php', [fresh] = parseOnjin(html, page);
+  const sample = { ...fresh, audioUrl: fresh.audioUrl.replace('/new/', '/old/'), id: 'onjin-persisted-project-id' }, seen = [];
+  const provider = new Onjin({ request: async (url, options) => {
+    seen.push(url);
+    if (url.includes('/old/')) throw new Error('サイトから取得できませんでした (HTTP 404)');
+    if (!options.audio) return Buffer.from(html);
+    return Buffer.from('fresh MP3');
+  } });
+  assert.equal((await provider.download(sample)).toString(), 'fresh MP3'); assert.equal(sample.id, 'onjin-persisted-project-id'); assert.equal(sample.audioUrl, fresh.audioUrl);
+  assert.deepEqual(seen, [fresh.audioUrl.replace('/new/', '/old/'), page, fresh.audioUrl]);
+});

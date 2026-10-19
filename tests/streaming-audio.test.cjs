@@ -74,13 +74,30 @@ test('broken progressive downloads error active readers, remove partial files an
   cache.network.request = async () => Buffer.from('complete retry');
   assert.equal(await fs.readFile(await cache.get(sample), 'utf8'), 'complete retry');
 });
-test('missing length waits for completion and a truncated declared length cannot become a valid cached file', { timeout: 3000 }, async t => {
+test('missing length streams immediately without inventing ranges; truncated declared length cannot become a cached file', { timeout: 3000 }, async t => {
   const unknown = await setup(t, { size: null });
   let ready = false; const preparing = unknown.cache.prepare(unknown.sample).then(() => { ready = true; });
-  await new Promise(resolve => setImmediate(resolve)); assert.equal(ready, false);
-  unknown.held.release(); await preparing;
-  assert.equal(await (await unknown.cache.response(unknown.sample)).text(), 'first!second');
+  await preparing; assert.equal(ready, true);
+  const response = await unknown.cache.response(unknown.sample, 'bytes=2-5');
+  assert.equal(response.status, 200); assert.equal(response.headers.get('content-length'), null);
+  const reader = response.body.getReader(); assert.equal(Buffer.from((await reader.read()).value).toString(), 'first!');
+  unknown.held.release(); assert.equal(Buffer.from((await reader.read()).value).toString(), 'second'); await reader.read();
   const truncated = await setup(t, { size: 20 }); await truncated.cache.prepare(truncated.sample);
   const saving = truncated.cache.get(truncated.sample); const rejected = assert.rejects(saving, /途中で終了/);
   truncated.held.release(); await rejected; assert.deepEqual(await fs.readdir(truncated.dir), []);
+});
+test('Japanese sites start MP3/WAV audition before a held transfer completes and save waits for the tail', { timeout: 3000 }, async t => {
+  const { SiteNetwork } = require('../src/main/network.cjs');
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'allsample-jp-stream-')); const held = gate();
+  t.after(async () => { held.release(); await Promise.all([...cache.pending.values()].map(entry => entry.ticket.promise.catch(() => {}))); await fs.rm(dir, { recursive: true, force: true }); });
+  let requests = 0;
+  const network = new SiteNetwork({ interval: 0, fetcher: async () => {
+    requests++; let sent = false;
+    return new Response(new ReadableStream({ async pull(controller) { if (!sent) { sent = true; controller.enqueue(Buffer.from('RIFF')); return; } await held.promise; controller.enqueue(Buffer.from('tail')); controller.close(); } }), { headers: { 'content-type': 'audio/wav', 'content-length': '8' } });
+  } });
+  const cache = new AudioCache(network, dir), sample = { id: 'maou-stream', site: 'maou', audioUrl: 'https://maou.audio/sound/rain.wav' };
+  await cache.prepare(sample, { priority: 0 }); const response = await cache.response(sample); assert.equal(response.headers.get('content-type'), 'audio/wav');
+  const reader = response.body.getReader(); assert.equal(Buffer.from((await reader.read()).value).toString(), 'RIFF');
+  let saved = false; const saving = cache.get(sample).then(file => { saved = true; return file; }); await new Promise(resolve => setImmediate(resolve)); assert.equal(saved, false);
+  held.release(); assert.equal(Buffer.from((await reader.read()).value).toString(), 'tail'); await reader.read(); assert.equal(await fs.readFile(await saving, 'utf8'), 'RIFFtail'); assert.equal(requests, 1);
 });

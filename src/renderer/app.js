@@ -7,7 +7,8 @@ function readStored(key, fallback) { try { return JSON.parse(localStorage.getIte
 const audio = new Audio(); audio.volume = 0.65;
 const audioGraph = new AllsampleAudioGraph(audio);
 let filterControls;
-let audioContext, playGeneration = 0, toastTimer;
+let audioContext, playGeneration = 0, toastTimer, hoverTimer;
+const waveformJobs = new Map(), dragJobs = new Map(), dragReady = new Set();
 let cachePinKey = null;
 function syncCachePins() {
   const ids = [...new Set([...state.compareIds, state.playing, state.pendingPlay, state.selected?.id].filter(Boolean))];
@@ -45,19 +46,21 @@ function sampleRevision(sample) { return sample?.site === 'local' ? [sample.size
 function rememberSample(sample) {
   const previous = state.known.get(sample.id);
   if (sample.site === 'local' && previous && sampleRevision(previous) !== sampleRevision(sample)) {
-    state.info.delete(sample.id); state.prepared.delete(sample.id); state.audioLoads.delete(sample.id);
+    state.info.delete(sample.id); state.prepared.delete(sample.id); state.audioLoads.delete(sample.id); dragReady.delete(sample.id); dragJobs.delete(sample.id);
     if (state.playing === sample.id || state.pendingPlay === sample.id) { stop(); state.playing = null; refreshPlayback(); }
   }
   state.known.set(sample.id, sample);
   if (state.selected?.id === sample.id) { const open = $('#detail').classList.contains('open'); state.selected = null; selectSample(sample); if (!open) $('#detail').classList.remove('open'); }
 }
-function persistKnown() { try { localStorage.setItem('known', JSON.stringify([...state.known.values()])); } catch {} libraryUI?.persist(); }
+// The main-process catalog is authoritative. Serializing the entire library to
+// localStorage after every audition blocks keyboard and playback on large catalogs.
+function persistKnown() { libraryUI?.persist(); }
 function sampleTitle(sample) { return state.blind ? `候補 ${String.fromCharCode(65 + Math.max(0, state.compareIds.indexOf(sample.id)))}` : sample.title; }
 function playerLabels() { const sample = sampleById(state.pendingPlay || state.playing); if (sample) { $('#player-title').textContent = sampleTitle(sample); $('#player-source').textContent = state.blind ? 'ブラインド比較' : `${sample.siteName} · ${sample.format}${sample.isPreview ? ' 試聴用' : ''}`; $('#player-play').disabled = false; } else { $('#player-title').textContent = '未選択'; $('#player-source').textContent = '—'; $('#player-play').disabled = true; $('#seek').disabled = true; } }
 function renderResults() {
   syncCachePins();
   const items = visibleResults();
-  const markup = items.map(sample => `<div class="sample-row ${state.selected?.id === sample.id ? 'selected' : ''}" data-id="${sample.id}" tabindex="0" role="group" aria-label="${escapeHtml(sampleTitle(sample))}" draggable="${state.info.has(sample.id)}"><div class="sample-main"><button class="row-play" data-play="${sample.id}" aria-label="${escapeHtml(sampleTitle(sample))}を試聴">${playGlyph(sample.id)}</button><div class="sample-text"><div class="sample-title">${escapeHtml(sampleTitle(sample))}</div><div class="sample-meta"><span>${escapeHtml(state.blind ? '' : sample.siteName + (sample.available === false ? '（フォルダ未登録）' : ''))}</span><span>${escapeHtml(sample.kind)}${currentWorkflow === 'music' ? escapeHtml([sample.bpm ? sample.bpm + ' BPM' : '', sample.key || ''].filter(Boolean).join(' · ') ? ' · ' + [sample.bpm ? sample.bpm + ' BPM' : '', sample.key || ''].filter(Boolean).join(' · ') : '') : ''}</span></div></div></div><div class="wave-wrap">${state.info.has(sample.id) ? `<canvas class="wave-canvas" data-wave="${sample.id}" aria-label="音声の波形"></canvas>` : '<div class="wave-pending" aria-label="波形未取得"></div>'}</div>${badge(sample)}<span class="duration" data-duration="${sample.id}">${time(state.info.get(sample.id)?.duration ?? sample.duration)}</span><button class="favorite ${state.favoriteIds.has(sample.id) ? 'on' : ''}" data-favorite="${sample.id}" aria-label="お気に入り${state.favoriteIds.has(sample.id) ? 'から削除' : 'に追加'}">${uiIcon('star')}</button></div>`).join('');
+  const markup = items.map(sample => `<div class="sample-row ${state.selected?.id === sample.id ? 'selected' : ''}" data-id="${sample.id}" tabindex="0" role="group" aria-label="${escapeHtml(sampleTitle(sample))}" draggable="true"><div class="sample-main"><button class="row-play" data-play="${sample.id}" aria-label="${escapeHtml(sampleTitle(sample))}を試聴">${playGlyph(sample.id)}</button><div class="sample-text"><div class="sample-title">${escapeHtml(sampleTitle(sample))}</div><div class="sample-meta"><span>${escapeHtml(state.blind ? '' : sample.siteName + (sample.available === false ? '（フォルダ未登録）' : ''))}</span><span>${escapeHtml(sample.kind)}${currentWorkflow === 'music' ? escapeHtml([sample.bpm ? sample.bpm + ' BPM' : '', sample.key || ''].filter(Boolean).join(' · ') ? ' · ' + [sample.bpm ? sample.bpm + ' BPM' : '', sample.key || ''].filter(Boolean).join(' · ') : '') : ''}</span></div></div></div><div class="wave-wrap">${state.info.has(sample.id) ? `<canvas class="wave-canvas" data-wave="${sample.id}" aria-label="音声の波形"></canvas>` : '<div class="wave-pending" aria-label="波形未取得"></div>'}</div>${badge(sample)}<span class="duration" data-duration="${sample.id}">${time(state.info.get(sample.id)?.duration ?? sample.duration)}</span><button class="favorite ${state.favoriteIds.has(sample.id) ? 'on' : ''}" data-favorite="${sample.id}" aria-label="お気に入り${state.favoriteIds.has(sample.id) ? 'から削除' : 'に追加'}">${uiIcon('star')}</button></div>`).join('');
   const container = $('#results');
   const template = document.createElement('template'); template.innerHTML = markup;
   const existing = new Map([...container.children].map(row => [row.dataset.id, row]));
@@ -91,6 +94,19 @@ function drawWave(canvas, peaks, progress = 0) {
   const palette = getComputedStyle(document.documentElement); const waveColor = palette.getPropertyValue('--slate-11').trim(); const playedColor = palette.getPropertyValue('--gray-12').trim();
   for (let i = 0; i < count; i++) { const amplitude = Math.max(1.5, peaks[Math.floor(i / count * peaks.length)] * bounds.height * .85); context.fillStyle = i / count <= progress ? playedColor : waveColor; context.fillRect(i * 3, middle - amplitude / 2, 1.5, amplitude); }
 }
+function warmDrag(sample, intent = 'interactive') {
+  if (!api.prepareDrag || !sample) return Promise.resolve();
+  if (dragReady.has(sample.id)) return Promise.resolve();
+  if (dragJobs.has(sample.id)) {
+    if (intent !== 'prefetch') void api.prepareDrag(sample.id, intent).catch(() => {});
+    return dragJobs.get(sample.id);
+  }
+  const revision = sampleRevision(sample);
+  const job = api.prepareDrag(sample.id, intent).then(() => { if (revision === sampleRevision(sampleById(sample.id))) dragReady.add(sample.id); });
+  dragJobs.set(sample.id, job);
+  job.finally(() => { if (dragJobs.get(sample.id) === job) dragJobs.delete(sample.id); }).catch(() => {});
+  return job;
+}
 function loadAudio(sample, intent = 'interactive') {
   let entry = state.audioLoads.get(sample.id);
   if (!entry) {
@@ -105,22 +121,25 @@ function loadAudio(sample, intent = 'interactive') {
   return entry.promise;
 }
 async function prepare(sample, intent = 'interactive') {
+  if (intent === 'prefetch') return loadAudio(sample, intent);
   // A waveform can outlive its evicted audio file. Warm the audio independently.
   void loadAudio(sample, intent).catch(() => {});
   if (!state.prepared.has(sample.id)) {
     const revision = sampleRevision(sample);
     const current = () => sampleRevision(sampleById(sample.id)) === revision;
+    const controller = new AbortController(); waveformJobs.set(sample.id, controller);
     const pending = (async () => {
       const url = await loadAudio(sample, intent);
       const waveformUrl = new URL(url); waveformUrl.searchParams.set('waveform', '1');
-      const response = await fetch(waveformUrl); if (!response.ok) throw new Error('音声を読み込めませんでした');
+      controller.signal.throwIfAborted();
+      const response = await fetch(waveformUrl, { signal: controller.signal }); if (!response.ok) throw new Error('音声を読み込めませんでした');
       audioContext ||= new AudioContext(); const buffer = await audioContext.decodeAudioData(await response.arrayBuffer());
-      if (!current()) return null;
+      if (controller.signal.aborted || !current()) return null;
       const peaks = []; const bins = 240;
       for (let i = 0; i < bins; i++) { let max = 0; const start = Math.floor(i * buffer.length / bins); const end = Math.floor((i + 1) * buffer.length / bins); const stride = Math.max(1, Math.floor((end - start) / 180)); for (let channel = 0; channel < buffer.numberOfChannels; channel++) { const data = buffer.getChannelData(channel); for (let j = start; j < end; j += stride) max = Math.max(max, Math.abs(data[j])); } peaks.push(max); }
       const previousLicense = JSON.stringify(sample.license);
       const measured = await api.metadata(sample.id, { duration: buffer.duration, channels: buffer.numberOfChannels, sampleRate: buffer.sampleRate });
-      if (!current()) return null;
+      if (controller.signal.aborted || !current()) return null;
       const peakMax = Math.max(...peaks, .001); const info = { ...measured, peaks: peaks.map(peak => peak / peakMax), url };
       state.info.set(sample.id, info);
       Object.assign(sample, { duration: info.duration, channels: info.channels, sampleRate: info.sampleRate, license: measured.license || sample.license, audioUrl: measured.audioUrl ?? sample.audioUrl });
@@ -134,7 +153,7 @@ async function prepare(sample, intent = 'interactive') {
       if (filterControls && Object.values(filterControls.get()).some(value => value != null && value !== false && value !== '')) renderResults();
       return info;
     })();
-    state.prepared.set(sample.id, pending); pending.catch(() => { if (state.prepared.get(sample.id) === pending) state.prepared.delete(sample.id); });
+    state.prepared.set(sample.id, pending); pending.finally(() => { if (waveformJobs.get(sample.id) === controller) waveformJobs.delete(sample.id); }).catch(() => {}); pending.catch(() => { if (state.prepared.get(sample.id) === pending) state.prepared.delete(sample.id); });
   }
   return state.prepared.get(sample.id);
 }
@@ -144,16 +163,18 @@ async function play(sample) {
   audioGraph.mute(); audio.pause(); state.pendingPlay = sample.id; state.auditioning = true; refreshPlayback();
   let url;
   try { [url] = await Promise.all([loadAudio(sample, 'interactive'), audioGraph.ensure(audioContext ||= new AudioContext())]); }
-  catch (error) { if (generation === playGeneration) stop(); throw error; }
+  catch (error) { if (generation !== playGeneration) return; stop(); throw error; }
   if (generation !== playGeneration) return;
-  state.playing = sample.id; state.pendingPlay = null;
+  state.playing = sample.id;
   audio.src = url; audio.currentTime = 0; audioGraph.reset();
   await audioGraph.resume(() => generation === playGeneration); if (generation !== playGeneration) return;
   playerLabels(); $('#player-play').disabled = false; $('#seek').disabled = false;
   try { await audio.play(); } catch (error) { if (generation !== playGeneration || error.name === 'AbortError') return; stop(); throw error; }
   if (generation !== playGeneration) return;
+  state.pendingPlay = null;
   // Waveform decoding follows playback rather than delaying the first audible sample.
-  action(() => prepare(sample));
+  void prepare(sample).catch(() => {});
+  void warmDrag(sample).catch(() => {});
   state.history = [sample.id, ...state.history.filter(id => id !== sample.id)].slice(0, 200); localStorage.setItem('history', JSON.stringify(state.history)); persistKnown();
 
   refreshPlayback();
@@ -184,6 +205,7 @@ function seekPlayback(sample, fraction) {
 function selectSample(sample) {
   if (state.selected?.id === sample.id && $('#detail').classList.contains('open')) return;
   const changed = state.selected?.id !== sample.id;
+  if (changed) for (const [id, controller] of waveformJobs) if (id !== sample.id && id !== state.playing) { controller.abort(); waveformJobs.delete(id); state.prepared.delete(id); }
   state.selected = sample;
   syncCachePins();
   document.querySelectorAll('.sample-row[data-id]').forEach(row => row.classList.toggle('selected', row.dataset.id === sample.id));
@@ -212,14 +234,16 @@ $('#results').addEventListener('click', event => {
   if (event.target.closest('[data-favorite]')) { if (state.favoriteIds.has(sample.id)) state.favoriteIds.delete(sample.id); else state.favoriteIds.add(sample.id); localStorage.setItem('favorites', JSON.stringify([...state.favoriteIds])); persistKnown(); renderResults(); return; }
   selectSample(sample);
   if (event.target.closest('[data-play]')) { if ((state.playing === sample.id || state.pendingPlay === sample.id) && state.auditioning) stop(); else action(() => play(sample)); }
-  else action(() => prepare(sample));
+  else void prepare(sample).catch(() => {});
 });
 // Hover warms the cache only. Selection and playback are controlled explicitly.
 $('#results').addEventListener('pointerover', event => {
   const row = event.target.closest('[data-id]'); if (!row || row.contains(event.relatedTarget)) return;
   // Speculative downloads must not interrupt someone who only moved the pointer.
-  void prepare(sampleById(row.dataset.id), 'prefetch').catch(() => {});
+  clearTimeout(hoverTimer);
+  hoverTimer = setTimeout(() => { const sample = sampleById(row.dataset.id); void loadAudio(sample, 'prefetch').catch(() => {}); void warmDrag(sample, 'prefetch').catch(() => {}); }, 160);
 });
+$('#results').addEventListener('pointerout', event => { const row = event.target.closest('[data-id]'); if (row && !row.contains(event.relatedTarget)) clearTimeout(hoverTimer); });
 let rowSeek = null;
 $('#results').addEventListener('pointerdown', event => {
   const canvas = event.target.closest('[data-wave]'); if (!canvas || event.button !== 0) return;
@@ -236,7 +260,21 @@ $('#results').addEventListener('pointermove', event => {
   seekPlayback(rowSeek.sample, rowSeek.fraction);
 });
 for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) $('#results').addEventListener(name, event => { if (rowSeek?.pointerId === event.pointerId) rowSeek = null; });
-$('#results').addEventListener('dragstart', event => { const row = event.target.closest('[data-id]'); if (!row) return; event.preventDefault(); if (event.target.closest('[data-wave]')) return; if (state.info.has(row.dataset.id)) api.startDrag(row.dataset.id); else notify('音源を読み込んでからドラッグしてください'); });
+$('#results').addEventListener('pointerdown', event => {
+  if (event.button !== 0 || event.target.closest('button, [data-wave]')) return;
+  const row = event.target.closest('[data-id]');
+  if (row) void warmDrag(sampleById(row.dataset.id)).catch(() => {});
+});
+$('#results').addEventListener('dragstart', event => {
+  const row = event.target.closest('[data-id]'); if (!row) return;
+  event.preventDefault(); if (event.target.closest('button, [data-wave]')) return;
+  const sample = sampleById(row.dataset.id);
+  if (dragReady.has(sample.id)) { stop(); api.startDrag(sample.id); }
+  else {
+    void warmDrag(sample).catch(() => {});
+    notify('音源を準備しています。少し待ってからもう一度ドラッグしてください。');
+  }
+});
 async function search() {
   rememberWorkflow(); stop(); if (state.view === 'all') state.results = []; state.busy = state.view === 'all'; state.requestId++; state.selected = null; $('#search-error').textContent = ''; $('#detail').classList.remove('open');
   $('#result-title').textContent = $('#query').value.trim() ? $('#query').value.trim() : 'すべての音源'; $('#search-error').hidden = true; renderResults();
@@ -254,7 +292,7 @@ api.onSearch(event => {
   cancelAnimationFrame(renderFrame); renderFrame = requestAnimationFrame(renderResults);
 });
 api.onError(notify);
-api.onCacheEvicted(id => { state.audioLoads.delete(id); });
+api.onCacheEvicted(id => { state.audioLoads.delete(id); dragReady.delete(id); });
 
 const workflowProfiles = readStored('workflowProfiles', {});
 let currentWorkflow = readStored('workflow', 'all');
@@ -282,7 +320,7 @@ document.querySelectorAll('[data-view]').forEach(button => { button.onclick = ()
 $('#batch').onclick = () => action(async () => { const button = $('#batch'); button.disabled = true; try { const files = await api.batch(visibleResults().map(sample => sample.id)); notify(`${files.length}件を Downloads の各サイトフォルダに書き出しました`); } finally { button.disabled = false; } });
 $('#volume').oninput = event => { audio.volume = Number(event.target.value); libraryUI?.persist(); };
 $('#seek').oninput = event => { if (Number.isFinite(playbackDuration())) { audio.currentTime = Number(event.target.value) / 1000 * playbackDuration(); audioGraph.reset(); } };
-$('#player-play').onclick = () => action(async () => { if (state.auditioning) stop(); else await resumePlayback(); });
+$('#player-play').onclick = () => action(async () => { if (state.auditioning) stop(); else if (state.playing) await resumePlayback(); else if (state.selected) await play(state.selected); });
 function setPlaybackSettings() {
   if (!$('#tempo').validity.valid || !$('#pitch').validity.valid || !$('#tempo').value || !$('#pitch').value) return;
   state.tempo = Number($('#tempo').value); state.pitch = Number($('#pitch').value);
@@ -297,7 +335,16 @@ document.addEventListener('keydown', event => { if (event.key === 'Escape' && do
 
 audio.ontimeupdate = () => { if (state.pendingPlay) return; $('#player-time').textContent = `${time(audio.currentTime)} / ${time(playbackDuration())}`; $('#seek').value = Number.isFinite(playbackDuration()) ? audio.currentTime / playbackDuration() * 1000 : 0; if (state.selected?.id === state.playing) drawWave($('#detail-wave'), state.info.get(state.playing)?.peaks, audio.currentTime / playbackDuration()); };
 audio.onplay = refreshPlayback; audio.onpause = refreshPlayback;
-audio.onended = () => { state.auditioning = false; audioGraph.idle(); refreshPlayback(); }; audio.onerror = () => { stop(); notify('音声を再生できませんでした。もう一度お試しください。'); };
+audio.onended = () => { state.auditioning = false; state.pendingPlay = null; audioGraph.idle(); refreshPlayback(); };
+// play() owns errors during startup, so one failure cannot raise two notices or
+// let a stale rejected promise stop a more recently requested sample.
+audio.onerror = () => {
+  if (!audio.error) return;
+  const id = state.pendingPlay || state.playing;
+  if (id) { state.audioLoads.delete(id); state.prepared.delete(id); }
+  if (state.pendingPlay) return;
+  stop(); notify('音声を再生できませんでした。もう一度お試しください。');
+};
 document.addEventListener('keydown', event => {
   if ($('#settings').open) return;
   if (event.isComposing || event.target.closest('input:not([type=checkbox]), select, textarea, [contenteditable=true]') || event.metaKey || event.ctrlKey || event.altKey) return;
@@ -315,7 +362,7 @@ document.addEventListener('keydown', event => {
       selectSample(next);
       const row = document.querySelector(`[data-id="${next.id}"]`);
       row?.focus({ preventScroll: true }); row?.scrollIntoView({ block: 'nearest' });
-      if (continuePlayback) action(() => play(next)); else action(() => prepare(next));
+      if (continuePlayback) action(() => play(next)); else void prepare(next).catch(() => {});
     }
   }
   if (event.code === 'Space') { event.preventDefault(); if (state.auditioning) stop(); else if (state.selected) action(() => state.playing === state.selected.id ? resumePlayback() : play(state.selected)); }

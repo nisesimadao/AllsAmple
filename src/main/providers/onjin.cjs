@@ -21,6 +21,25 @@ class Onjin {
   id = 'onjin'; name = 'On-Jin ～音人～'; catalog = new Map(); loaded = new Set();
   constructor(network, dataDir) { this.network = network; this.dataDir = dataDir; }
   async restore() { try { const data = JSON.parse(await fs.readFile(path.join(this.dataDir, 'onjin-index.json'), 'utf8')); if (Date.now() - data.updated < 86400000) { for (const item of data.items) this.catalog.set(item.id, { ...item, license }); for (const page of data.pages) this.loaded.add(page); } } catch {} }
+  promote(sample, priority) { this.network.promote?.(sample, priority); }
+  async download(sample, options = {}) {
+    try { return await this.network.request(sample.audioUrl, { ...options, audio: true, pageUrl: sample.pageUrl, sample }); }
+    catch (error) {
+      // On-Jin rotates the directory embedded in download links. A persisted
+      // catalog must resolve a fresh, observed link instead of replaying a 404.
+      if (!/HTTP (?:403|404|410)/.test(error.message)) throw error;
+      const detail = new URL(sample.pageUrl);
+      const category = detail.searchParams.get('pagename');
+      if (detail.origin !== 'https://on-jin.com' || !['kan', 'sei', 'hito', 'meka', 'ani', 'nori', 'sen', 'spo', 'ta', 'muci'].includes(category)) throw error;
+      const page = `https://on-jin.com/sound/${category}.php`;
+      const html = (await this.network.request(page, { priority: options.priority ?? 100 })).toString();
+      const filename = new URL(sample.audioUrl).pathname.split('/').pop();
+      const fresh = parseOnjin(html, page).find(row => row.title === sample.title && row.pageUrl === sample.pageUrl && new URL(row.audioUrl).pathname.split('/').pop() === filename);
+      if (!fresh || fresh.audioUrl === sample.audioUrl) throw error;
+      sample.audioUrl = fresh.audioUrl;
+      return this.network.request(sample.audioUrl, { ...options, audio: true, pageUrl: page, sample });
+    }
+  }
   async *search(query, { signal } = {}) {
     const seen = new Set();
     for (const sample of this.catalog.values()) if (matches(sample, query)) { seen.add(sample.id); yield sample; }

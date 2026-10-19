@@ -10,14 +10,15 @@ class GrowingAudio {
     this.ready.catch(() => {});
   }
   wake() { for (const listener of [...this.listeners]) listener(); }
-  async begin({ size }) {
+  async begin({ size, type }) {
+    this.type = type || (this.file.endsWith('.wav') ? 'audio/wav' : 'audio/mpeg');
     this.size = Number.isSafeInteger(size) && size > 0 ? size : null;
     await fs.writeFile(this.partial, Buffer.alloc(0));
   }
   async append(chunk) {
     await fs.appendFile(this.partial, chunk); this.written += chunk.length;
     if (this.size && this.written > this.size) throw new Error('音声のサイズが応答と一致しません');
-    if (this.size && this.written) this.resolve(this);
+    if (this.written) this.resolve(this);
     this.wake();
   }
   async complete() {
@@ -30,9 +31,9 @@ class GrowingAudio {
 }
 
 function growingResponse(transfer, range, release) {
-  const size = transfer.size, headers = { 'Accept-Ranges': 'bytes', 'Content-Type': 'audio/mpeg' };
-  let start = 0, end = size - 1;
-  if (range) {
+  const size = transfer.size, headers = { 'Accept-Ranges': size == null ? 'none' : 'bytes', 'Content-Type': transfer.type || 'audio/mpeg' };
+  let start = 0, end = size == null ? Infinity : size - 1;
+  if (range && size != null) {
     const match = /^bytes=(\d*)-(\d*)$/.exec(range);
     if (match && (match[1] || match[2])) {
       start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]));
@@ -43,7 +44,7 @@ function growingResponse(transfer, range, release) {
     }
     headers['Content-Range'] = `bytes ${start}-${end}/${size}`;
   }
-  headers['Content-Length'] = String(end - start + 1);
+  if (Number.isFinite(end)) headers['Content-Length'] = String(end - start + 1);
   let position = start, cancelled = false, active = false, closed = false, wake;
   const close = () => { if (!closed) { closed = true; release(); } };
   const stream = new ReadableStream({
@@ -55,7 +56,7 @@ function growingResponse(transfer, range, release) {
         }
         if (cancelled) return;
         if (transfer.error) throw transfer.error;
-        if (position > end) { controller.close(); close(); return; }
+        if (position > end || (transfer.done && position >= transfer.written)) { controller.close(); close(); return; }
         const count = Math.min(64 * 1024, end - position + 1, transfer.written - position);
         if (count <= 0) throw new Error('音声の取得が途中で終了しました');
         // Rename can happen between choosing a path and opening it.
@@ -67,12 +68,12 @@ function growingResponse(transfer, range, release) {
         if (cancelled) return;
         if (!read) throw new Error('音声を読み込めませんでした');
         position += read; controller.enqueue(bytes.subarray(0, read));
-        if (position > end) { controller.close(); close(); }
+        if (position > end || (transfer.done && position >= transfer.written)) { controller.close(); close(); }
       } catch (error) { if (!cancelled) controller.error(error); close(); }
       finally { active = false; if (cancelled) close(); }
     },
     cancel() { cancelled = true; wake?.(); if (!active) close(); }
   });
-  return new Response(stream, { status: range ? 206 : 200, headers });
+  return new Response(stream, { status: range && size != null ? 206 : 200, headers });
 }
 module.exports = { GrowingAudio, growingResponse };

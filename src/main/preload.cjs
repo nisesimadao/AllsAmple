@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('allsample', {
   save: id => invoke('save', id), copyPath: id => invoke('copy-path', id), reveal: id => invoke('reveal', id), batch: ids => invoke('batch', ids),
   openPage: id => invoke('open-page', id), openTerms: id => invoke('open-terms', id), copyCredit: id => invoke('copy-credit', id),
   credits: ids => invoke('credits', ids),
+  prepareDrag: (id, intent) => invoke('prepare-drag', id, intent),
   startDrag: id => ipcRenderer.send('start-drag', id),
   onSearch: callback => { const listener = (_, data) => callback(data); ipcRenderer.on('search-event', listener); return () => ipcRenderer.removeListener('search-event', listener); },
   onError: callback => { const listener = (_, message) => callback(message); ipcRenderer.on('action-error', listener); return () => ipcRenderer.removeListener('action-error', listener); },

@@ -9,7 +9,7 @@ const { BrowserCatalog } = require('./providers/browser-catalog.cjs');
 // Audio playback, files, local folders and the Electron shell stay in the app.
 module.exports = {
   api: 1,
-  version: '1.0.0',
+  version: '1.0.1',
   create({ createNetwork, dataDir, automation, getFreesoundKey }) {
     return [
       new SoundEffectLab(createNetwork(), dataDir), new Maou(createNetwork()),

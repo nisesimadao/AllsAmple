@@ -89,7 +89,7 @@ window.AllsampleLibrary = class {
     if (!sample) return;
     if (this.state.compareIds.includes(sample.id)) return;
     if (this.state.compareIds.length >= 4) { this.notify('比較は4件までです。候補を外すと入れ替えられます'); return; }
-    this.state.compareIds.push(sample.id); this.refresh(); this.persist(); this.run(() => this.prepare(sample, 'prefetch'));
+    this.state.compareIds.push(sample.id); this.refresh(); this.persist(); void this.prepare(sample, 'prefetch').catch(() => {});
   }
   switchTo(index) {
     const sample = this.state.known.get(this.state.compareIds[index]); if (!sample) return;

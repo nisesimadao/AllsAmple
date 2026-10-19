@@ -53,7 +53,7 @@ class ModuleUpdates {
   set(change) { Object.assign(this.state, change); this.onChange(this.status()); }
   async load(context) {
     const active = await this.store.read(null);
-    if (active) {
+    if (active && (!validVersion(active.version) || !newer(this.bundled.version, active.version))) {
       try {
         if (!validVersion(active.version) || !/^[a-f0-9]{64}$/.test(active.sha256)) throw new Error('invalid module record');
         const folder = path.join(this.folder, `${active.version}-${active.sha256.slice(0, 12)}`);

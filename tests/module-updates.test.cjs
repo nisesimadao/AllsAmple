@@ -27,7 +27,7 @@ test('real site module downloads, persists and runs updated search code after a 
   const f = await fixture(t), first = f.create();
   const initial = await first.load(f.context); assert.equal(initial.length, 9); assert.equal(initial[0].name, '効果音ラボ');
   assert.equal((await first.check()).phase, 'available'); assert.equal(f.requests.length, 1);
-  assert.equal((await first.download()).phase, 'ready'); assert.equal(first.status().version, '1.0.0');
+  assert.equal((await first.download()).phase, 'ready'); assert.equal(first.status().version, bundled.version);
   assert.equal(initial[0].name, '効果音ラボ'); // Current instances keep running.
   const second = f.create(), providers = await second.load(f.context);
   assert.equal(second.status().version, '1.1.0'); assert.equal(providers[0].name, '更新版ラボ');
@@ -57,7 +57,7 @@ test('downloaded code is not executed until loading, and a broken factory falls 
   const manager = f.create(); await manager.check(); assert.equal((await manager.download()).phase, 'ready');
   const fresh = f.create(), providers = await fresh.load(f.context);
   assert.equal(providers.length, 9); assert.equal(providers[0].name, '効果音ラボ');
-  assert.equal(fresh.status().version, '1.0.0'); assert.match(fresh.status().message, /同梱版/);
+  assert.equal(fresh.status().version, bundled.version); assert.match(fresh.status().message, /同梱版/);
 });
 
 test('unsupported APIs, foreign assets and malformed source files are not installed', async t => {
@@ -104,4 +104,12 @@ test('background checks wait until startup settles, repeat while idle, and stop 
   t.mock.timers.tick(30000); await manager.pending; assert.equal(f.requests.length, 1);
   t.mock.timers.tick(6 * 60 * 60 * 1000); await manager.pending; assert.equal(f.requests.length, 2);
   manager.stop(); t.mock.timers.tick(6 * 60 * 60 * 1000); assert.equal(f.requests.length, 2);
+});
+
+
+test('a newer installed shell does not load an older downloaded site module', async t => {
+  const f = await fixture(t), first = f.create(); await first.check(); await first.download();
+  const fresh = f.create({ bundled: { ...bundled, version: '2.0.0' } });
+  const providers = await fresh.load(f.context);
+  assert.equal(providers[0].name, '効果音ラボ'); assert.equal(fresh.status().version, '2.0.0');
 });
