@@ -70,7 +70,10 @@ test('DOVA refreshes expired signed URLs while reusing still-valid resolved orig
   const provider = new Dova(), item = sample(), previous = { ...item, audioUrl: media('bgm', true), isPreview: false };
   provider.reuseKnown(item, previous); assert.equal(item.audioUrl, previous.audioUrl); assert.equal(item.isPreview, false);
   provider.fetcher = async () => { throw new Error('a fresh URL must not request detail'); }; await provider.resolve(item);
-  const expired = { ...sample(), audioUrl: media('bgm', true, 1) }; assert.equal(sample().audioUrl, null);
+  const expired = { ...sample(), audioUrl: media('bgm', true, 1), isPreview: false, license: { ...item.license, category: 'green' } };
+  const searchedAgain = sample(); provider.reuseKnown(searchedAgain, expired);
+  assert.equal(searchedAgain.isPreview, false); assert.equal(searchedAgain.license.category, 'green');
+  assert.equal(searchedAgain.audioUrl, expired.audioUrl); // cached audio keeps provenance; a download still refreshes the expired signature.
   let reads = 0; provider.fetcher = async () => { reads++; throw new Error('refreshed detail'); };
   await assert.rejects(provider.resolve(expired), /refreshed detail/); assert.equal(reads, 1);
 });

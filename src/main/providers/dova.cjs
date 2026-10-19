@@ -103,7 +103,7 @@ class Dova {
     }
     if (errors.length) throw new Error(errors.join(' / '));
   }
-  reuseKnown(sample, previous) { if (previous?.pageUrl === sample.pageUrl && freshMedia(previous)) Object.assign(sample, { audioUrl: previous.audioUrl, isPreview: previous.isPreview, license: previous.license }); }
+  reuseKnown(sample, previous) { if (previous?.pageUrl === sample.pageUrl && validMedia(previous.audioUrl, sample.remoteType)) Object.assign(sample, { audioUrl: previous.audioUrl, isPreview: previous.isPreview, license: previous.license }); }
   async resolve(sample, signal) {
     if (freshMedia(sample)) return;
     const page = pageInfo(sample.pageUrl); if (!page) throw new Error('素材ページを確認してください');
