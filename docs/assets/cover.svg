@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-labelledby="title desc">
+  <title id="title">AllsAmple</title>
+  <desc id="desc">複数の音素材サイトを検索して、並べて聴いて、そのまま保存。</desc>
+  <rect width="1200" height="320" fill="#111111"/>
+  <path d="M64 271H1136" stroke="#3a3a3a"/>
+  <text x="62" y="150" font-family="-apple-system,BlinkMacSystemFont,Helvetica,sans-serif" font-size="83" font-weight="600" letter-spacing="-4" fill="#eeeeee">AllsAmple</text>
+  <text x="66" y="205" font-family="-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif" font-size="22" fill="#b4b4b4">音源を横断検索。並べて聴いて、そのまま保存。</text>
+  <g transform="translate(875 56) scale(8.6)" fill="none" stroke="#eeeeee" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M2 10v3" />
+  <path d="M6 6v11" />
+  <path d="M10 3v18" />
+  <path d="M14 8v7" />
+  <path d="M18 5v13" />
+  <path d="M22 10v3" />
+</g>
+</svg>

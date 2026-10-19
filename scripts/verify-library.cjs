@@ -1,0 +1,108 @@
+const { _electron: electron } = require('playwright');
+const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const os = require('node:os');
+const { wav } = require('./audio-fixture.cjs');
+(async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'allsample-library-'));
+  const root = path.join(dir, '手持ちの音源'); await fs.mkdir(root);
+  for (let i = 0; i < 5; i++) await fs.writeFile(path.join(root, `rain_loop_${100 + i * 10}bpm_Am_${i + 1}.wav`), wav({ seconds: 4, frequency: 220 + i * 110 }));
+  const env = { ...process.env, ALLSAMPLE_DATA_DIR: path.join(dir, 'data') }; delete env.ELECTRON_RUN_AS_NODE;
+  const launch = () => electron.launch({ env, ...(process.argv[2] ? { executablePath: path.resolve(process.argv[2]), args: [] } : { args: [path.join(__dirname, '..')] }) });
+  let app, page; const errors = [];
+  try {
+    app = await launch(); page = await app.firstWindow(); page.on('pageerror', error => errors.push(error.message)); await page.waitForFunction(() => state.ready);
+    await page.evaluate(() => { document.querySelectorAll('[data-site]').forEach(input => { input.checked = ['soundeffect-lab', 'local'].includes(input.dataset.site); }); });
+    await app.evaluate(({ dialog }, root) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [root] }); }, root);
+    await page.locator('#add-folder').click();
+    await page.waitForFunction(() => state.results.filter(sample => sample.site === 'local').length === 5 && state.results.some(sample => sample.site === 'soundeffect-lab'), undefined, { timeout: 60000 });
+    const localIds = await page.evaluate(() => state.results.filter(sample => sample.site === 'local').map(sample => sample.id));
+    const first = page.locator(`[data-id="${localIds[0]}"]`); await first.click();
+    await page.locator('#copy-path').click(); await page.getByRole('status').filter({ hasText: '保存先のパスをコピーしました' }).waitFor();
+    const copied = await app.evaluate(({ clipboard }) => clipboard.readText()); assert.equal(copied, await page.evaluate(id => state.known.get(id).localPath, localIds[0]));
+    console.log('PASS: own WAV files mix with live rain search and copy the original file path');
+    for (const id of localIds.slice(0, 4)) { await page.locator(`[data-id="${id}"]`).click(); await page.keyboard.press('b'); }
+    assert.equal(await page.locator('.compare-slot').count(), 4);
+    await page.locator(`[data-id="${localIds[4]}"]`).click(); await page.keyboard.press('b');
+    assert.equal(await page.locator('.compare-slot').count(), 4);
+    for (let i = 0; i < 4; i++) {
+      await page.keyboard.press(String(i + 1));
+      await page.waitForFunction(id => state.playing === id && !audio.paused, localIds[i]);
+      await page.waitForFunction(index => document.querySelectorAll('.compare-slot')[index]?.classList.contains('active'), i);
+      assert.equal(await page.locator('.compare-slot.active').count(), 1);
+    }
+    await fs.mkdir(path.join(__dirname, '../output/playwright'), { recursive: true });
+    await page.screenshot({ path: 'output/playwright/compare-desktop.png' });
+    await page.locator('#blind').check();
+    assert.equal(await page.locator('.sample-row').count(), 4);
+    assert.match(await page.locator('.compare-slot').first().innerText(), /1\s*候補 A/);
+    assert.equal(await page.evaluate(() => /効果音ラボ|ローカル|rain_loop/.test(document.body.innerText)), false);
+    await page.keyboard.press('2'); await page.waitForFunction(id => state.playing === id && !audio.paused, localIds[1]);
+    assert.equal(await page.locator('#player-title').innerText(), '候補 B');
+    await page.keyboard.press('Space'); await page.waitForFunction(() => audio.paused && !state.auditioning);
+    await page.keyboard.press('2'); await page.waitForFunction(id => state.playing === id && !audio.paused, localIds[1]);
+    await page.setViewportSize({ width: 320, height: 740 });
+    await page.locator('#close-detail').click();
+    assert(await page.evaluate(() => {
+      const tray = document.querySelector('#comparison').getBoundingClientRect(), player = document.querySelector('.player').getBoundingClientRect();
+      return document.documentElement.scrollWidth <= innerWidth && tray.bottom <= player.top && player.bottom <= innerHeight && player.bottom >= innerHeight - 1;
+    }));
+    await page.evaluate(() => { document.querySelector('#toast').hidden = true; });
+    await fs.mkdir(path.join(__dirname, '../output/playwright'), { recursive: true }); await page.screenshot({ path: 'output/playwright/compare-320.png' });
+    console.log('PASS: comparison caps at four, numeric keys switch real playback, blind mode conceals provenance, 320px fits');
+    await page.locator('#blind').uncheck();
+    await page.locator('#library-toggle').click(); assert.equal(await page.locator('#add-folder').isVisible(), true);
+    assert(await page.locator('.sidebar').evaluate(element => element.getBoundingClientRect().right <= innerWidth));
+    await page.locator('#close-library').click();
+    await page.setViewportSize({ width: 1360, height: 880 });
+    await first.click(); await first.locator('[data-favorite]').click(); await page.locator('#use-sample').click();
+    await page.locator('#new-project').click(); await page.locator('#project-name').fill('映像作品'); await page.locator('#project-form button[type="submit"]').click();
+    const projectId = await page.locator('#project').inputValue();
+    assert.equal(await page.evaluate(() => state.usedIds.size), 0);
+    const labId = await page.evaluate(() => state.results.find(sample => sample.site === 'soundeffect-lab').id);
+    await page.locator(`[data-id="${labId}"]`).click(); await page.locator('#use-sample').click();
+    await page.locator('#project').selectOption('default'); assert.deepEqual(await page.evaluate(() => [...state.usedIds]), [localIds[0]]);
+    const localCredits = path.join(dir, 'local-credit.txt');
+    await app.evaluate(({ dialog }, file) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: file }); }, localCredits);
+    await page.locator('#export-credits').click(); await page.getByRole('status').filter({ hasText: 'クレジット.txt を保存しました' }).waitFor();
+    assert((await fs.readFile(localCredits, 'utf8')).includes('入手元の利用条件'));
+    await page.locator('#project').selectOption(projectId); assert.deepEqual(await page.evaluate(() => [...state.usedIds]), [labId]);
+    const filmCredits = path.join(dir, 'film-credit.txt');
+    await app.evaluate(({ dialog }, file) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: file }); }, filmCredits);
+    await page.evaluate(() => { document.querySelector('#toast').hidden = true; });
+    await page.locator('#export-credits').click(); await page.getByRole('status').filter({ hasText: 'クレジット.txt を保存しました' }).waitFor();
+    const filmText = await fs.readFile(filmCredits, 'utf8'); assert(filmText.includes('クレジット表記が必要な素材はありません')); assert(!filmText.includes('入手元の利用条件'));
+    console.log('PASS: each project exports only its own credits');
+    await page.evaluate(() => libraryUI.persist());
+    const history = await page.evaluate(() => state.history.slice());
+    assert.deepEqual(errors, []);
+    await app.close(); app = null;
+    app = await launch(); page = await app.firstWindow(); page.on('pageerror', error => errors.push(error.message)); await page.waitForFunction(() => state.ready);
+    assert.equal(await page.locator('#project').inputValue(), projectId);
+    assert.deepEqual(await page.evaluate(() => [...state.usedIds]), [labId]);
+    assert.deepEqual(await page.evaluate(() => [...state.favoriteIds]), [localIds[0]]);
+    assert.deepEqual(await page.evaluate(() => state.history), history);
+    assert.deepEqual(await page.evaluate(() => state.compareIds), localIds.slice(0, 4));
+    assert.equal(await page.locator('.folder-row').count(), 1);
+    await page.waitForFunction(() => state.results.some(sample => sample.site === 'local'));
+    await page.locator(`[data-id="${localIds[0]}"] [data-play]`).click(); await page.waitForFunction(id => state.playing === id && !audio.paused, localIds[0]);
+    console.log('PASS: folders, local playback, favorites, history, four candidates and separate project usage survive an actual restart');
+    await page.locator('[data-remove-folder]').click();
+    await page.waitForFunction(() => document.querySelectorAll('.folder-row').length === 0 && !state.results.some(sample => sample.site === 'local'));
+    assert.equal((await fs.readdir(root)).length, 5);
+    assert.equal(await page.locator('.compare-slot').count(), 0);
+    await page.locator('#project').selectOption('default');
+    assert.deepEqual(await page.evaluate(() => [...state.usedIds]), [localIds[0]]);
+    assert.equal(await page.evaluate(id => state.known.get(id).available, localIds[0]), false);
+    const detachedCredits = path.join(dir, 'detached-credit.txt');
+    await app.evaluate(({ dialog }, file) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: file }); }, detachedCredits);
+    await page.locator('#export-credits').click(); await page.getByRole('status').filter({ hasText: 'クレジット.txt を保存しました' }).waitFor();
+    assert((await fs.readFile(detachedCredits, 'utf8')).includes('入手元の利用条件'));
+    console.log('PASS: unregistering a folder leaves original files and project attribution records intact');
+    assert.deepEqual(errors, []);
+  } catch (error) {
+    if (page && !page.isClosed()) { console.log(await page.evaluate(() => document.body.innerText.slice(-1600))); await page.screenshot({ path: 'output/playwright/library-failure.png' }); }
+    throw error;
+  } finally { if (app) await app.close(); await fs.rm(dir, { recursive: true, force: true }); }
+})().catch(error => { console.error(error); process.exitCode = 1; });

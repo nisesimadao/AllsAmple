@@ -1,0 +1,181 @@
+{
+  "capturedAt": "2026-10-19T13:09:39.744Z",
+  "renderer": "src/renderer/index.html",
+  "mode": "headless Chromium; IPC stubbed, no playback",
+  "query": "雨",
+  "metadata": "observed source HTML",
+  "waveforms": "decoded actual source audio; no synthetic waveform",
+  "sources": [
+    {
+      "id": "lab-2b12fd151cfabad115b9",
+      "site": "soundeffect-lab",
+      "title": "雨の街の道路",
+      "pageUrl": "https://soundeffect-lab.info/sound/environment/",
+      "audioUrl": "https://soundeffect-lab.info/sound/environment/mp3/town-rain1.mp3",
+      "format": "MP3"
+    },
+    {
+      "id": "maou-1c005fe8126d8534bf82",
+      "site": "maou",
+      "title": "ヒーリング14 雨の音無し版",
+      "pageUrl": "https://maou.audio/bgm_healing14b/",
+      "audioUrl": "https://maou.audio/sound/bgm/maou_bgm_healing14b.mp3",
+      "format": "MP3"
+    },
+    {
+      "id": "onjin-19ace51db0b0357bac6d",
+      "site": "onjin",
+      "title": "道路・雨",
+      "pageUrl": "https://on-jin.com/sound/listshow.php?pagename=kan&title=%E9%81%93%E8%B7%AF%E3%83%BB%E9%9B%A8&janl=%E7%92%B0%E5%A2%83%E7%B3%BB%E9%9F%B3&bunr=%E9%81%93%E8%B7%AF&kate=%E8%A1%97%E4%B8%AD%E3%83%BB%E7%94%BA%E4%B8%AD",
+      "audioUrl": "https://on-jin.com/sound/ag/s21c64c0dc/se/d/kan_ge_douro_ame01.mp3",
+      "format": "MP3"
+    },
+    {
+      "id": "lab-fd0a06a2a56034d4d828",
+      "site": "soundeffect-lab",
+      "title": "雨が降る1",
+      "pageUrl": "https://soundeffect-lab.info/sound/environment/",
+      "audioUrl": "https://soundeffect-lab.info/sound/environment/mp3/rain1.mp3",
+      "format": "MP3"
+    },
+    {
+      "id": "maou-ab8de9625295bd5c41ed",
+      "site": "maou",
+      "title": "ヒーリング12 雨音無し",
+      "pageUrl": "https://maou.audio/bgm_healing12b/",
+      "audioUrl": "https://maou.audio/sound/bgm/maou_bgm_healing12b.mp3",
+      "format": "MP3"
+    },
+    {
+      "id": "onjin-52dfb3d3348dbf459f05",
+      "site": "onjin",
+      "title": "街独特の低音・雨",
+      "pageUrl": "https://on-jin.com/sound/listshow.php?pagename=kan&title=%E8%A1%97%E7%8B%AC%E7%89%B9%E3%81%AE%E4%BD%8E%E9%9F%B3%E3%83%BB%E9%9B%A8&janl=%E7%92%B0%E5%A2%83%E7%B3%BB%E9%9F%B3&bunr=%E5%96%A7%E9%A8%92&kate=%E8%A1%97%E4%B8%AD%E3%83%BB%E7%94%BA%E4%B8%AD",
+      "audioUrl": "https://on-jin.com/sound/ag/s21c64c0dc/se/d/kan_ge_machi_ame01.mp3",
+      "format": "MP3"
+    },
+    {
+      "id": "lab-9aa0a64023cfbe1c56af",
+      "site": "soundeffect-lab",
+      "title": "雨が降る2",
+      "pageUrl": "https://soundeffect-lab.info/sound/environment/",
+      "audioUrl": "https://soundeffect-lab.info/sound/environment/mp3/rain2.mp3",
+      "format": "MP3"
+    },
+    {
+      "id": "maou-3c3fa660d48dd3f722bf",
+      "site": "maou",
+      "title": "ヒーリング11 雨音無し",
+      "pageUrl": "https://maou.audio/bgm_healing11b/",
+      "audioUrl": "https://maou.audio/sound/bgm/maou_bgm_healing11b.mp3",
+      "format": "MP3"
+    },
+    {
+      "id": "onjin-a2b1dcb6a9fb66b69206",
+      "site": "onjin",
+      "title": "天候・雨06",
+      "pageUrl": "https://on-jin.com/sound/listshow.php?pagename=kan&title=%E5%A4%A9%E5%80%99%E3%83%BB%E9%9B%A806&janl=%E7%92%B0%E5%A2%83%E7%B3%BB%E9%9F%B3&bunr=%E9%9B%A8&kate=%E6%B0%B4",
+      "audioUrl": "https://on-jin.com/sound/ag/s21c64c0dc/se/d/kan_ge_ame07.mp3",
+      "format": "MP3"
+    },
+    {
+      "id": "lab-e734757bed133525bc6f",
+      "site": "soundeffect-lab",
+      "title": "街を襲う集中豪雨",
+      "pageUrl": "https://soundeffect-lab.info/sound/environment/",
+      "audioUrl": "https://soundeffect-lab.info/sound/environment/mp3/towm-torrential-rain1.mp3",
+      "format": "MP3"
+    },
+    {
+      "id": "maou-a6bbb974a674c900f263",
+      "site": "maou",
+      "title": "8bit21",
+      "pageUrl": "https://maou.audio/bgm_8bit21/",
+      "audioUrl": "https://maou.audio/sound/bgm/maou_bgm_8bit21.mp3",
+      "format": "MP3"
+    },
+    {
+      "id": "onjin-9289492b626019fb4213",
+      "site": "onjin",
+      "title": "天候・雨05",
+      "pageUrl": "https://on-jin.com/sound/listshow.php?pagename=kan&title=%E5%A4%A9%E5%80%99%E3%83%BB%E9%9B%A805&janl=%E7%92%B0%E5%A2%83%E7%B3%BB%E9%9F%B3&bunr=%E9%9B%A8&kate=%E6%B0%B4",
+      "audioUrl": "https://on-jin.com/sound/ag/s21c64c0dc/se/d/kan_ge_ame06.mp3",
+      "format": "MP3"
+    }
+  ],
+  "measured": [
+    {
+      "id": "lab-2b12fd151cfabad115b9",
+      "duration": 62.89072562358277,
+      "channels": 2,
+      "sampleRate": 44100
+    },
+    {
+      "id": "maou-1c005fe8126d8534bf82",
+      "duration": 155.42857142857142,
+      "channels": 2,
+      "sampleRate": 44100
+    },
+    {
+      "id": "onjin-19ace51db0b0357bac6d",
+      "duration": 30.30204081632653,
+      "channels": 1,
+      "sampleRate": 44100
+    },
+    {
+      "id": "lab-fd0a06a2a56034d4d828",
+      "duration": 30.080249433106577,
+      "channels": 2,
+      "sampleRate": 44100
+    },
+    {
+      "id": "maou-ab8de9625295bd5c41ed",
+      "duration": 315.58530612244897,
+      "channels": 2,
+      "sampleRate": 44100
+    },
+    {
+      "id": "onjin-52dfb3d3348dbf459f05",
+      "duration": 11.180408163265307,
+      "channels": 1,
+      "sampleRate": 44100
+    },
+    {
+      "id": "lab-9aa0a64023cfbe1c56af",
+      "duration": 59.21106575963719,
+      "channels": 2,
+      "sampleRate": 44100
+    },
+    {
+      "id": "maou-3c3fa660d48dd3f722bf",
+      "duration": 323.3175510204082,
+      "channels": 2,
+      "sampleRate": 44100
+    },
+    {
+      "id": "onjin-a2b1dcb6a9fb66b69206",
+      "duration": 30.406530612244897,
+      "channels": 1,
+      "sampleRate": 44100
+    },
+    {
+      "id": "lab-e734757bed133525bc6f",
+      "duration": 113.69598639455782,
+      "channels": 2,
+      "sampleRate": 44100
+    },
+    {
+      "id": "maou-a6bbb974a674c900f263",
+      "duration": 46.393469387755104,
+      "channels": 2,
+      "sampleRate": 44100
+    },
+    {
+      "id": "onjin-9289492b626019fb4213",
+      "duration": 30.197551020408163,
+      "channels": 1,
+      "sampleRate": 44100
+    }
+  ],
+  "bundledAudio": false
+}

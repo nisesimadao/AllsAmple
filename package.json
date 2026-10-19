@@ -1,0 +1,100 @@
+{
+  "name": "allsample",
+  "version": "0.1.0",
+  "private": true,
+  "description": "音を探す。聴き比べる。制作へ。",
+  "main": "src/main/index.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test",
+    "test:live": "node scripts/verify-live.cjs",
+    "test:desktop": "node scripts/verify-desktop.cjs",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "test:catalogs": "electron scripts/verify-catalogs.cjs",
+    "test:library": "node scripts/verify-library.cjs",
+    "test:workflows": "node scripts/verify-workflows.cjs",
+    "test:audio": "node scripts/verify-audio-filters.cjs",
+    "test:cache": "node scripts/verify-cache.cjs",
+    "test:freesound": "node scripts/verify-freesound.cjs",
+    "test:streaming": "node scripts/verify-streaming.cjs",
+    "test:pixabay": "node scripts/verify-pixabay.cjs",
+    "dist:win": "electron-builder --win nsis --x64 --publish never",
+    "test:windows-package": "node scripts/verify-windows-package.cjs",
+    "test:windows": "node scripts/verify-windows-runtime.cjs",
+    "test:updates": "node scripts/verify-updates.cjs",
+    "dist:release:win": "electron-builder --config electron-builder.release.cjs --win nsis --x64 --publish never",
+    "dist:release:mac": "electron-builder --config electron-builder.release.cjs --mac --universal --publish never",
+    "test:actions": "node scripts/verify-actions.cjs",
+    "test:reveal": "node scripts/verify-reveal.cjs",
+    "icons": "node scripts/generate-icons.cjs",
+    "test:ui": "node scripts/verify-ui.cjs",
+    "build:modules": "node scripts/build-modules.cjs",
+    "assets:ui": "node scripts/generate-ui-assets.cjs",
+    "docs:screenshots": "node scripts/capture-docs.cjs"
+  },
+  "dependencies": {
+    "@soundtouchjs/audio-worklet": "^2.1.1",
+    "cheerio": "^1.1.2",
+    "music-metadata": "^12.2.2",
+    "playwright-core": "^1.64.1"
+  },
+  "devDependencies": {
+    "@radix-ui/colors": "^3.0.0",
+    "electron": "^44.9.0",
+    "electron-builder": "^26.15.3",
+    "lucide-static": "^1.59.0",
+    "playwright": "^1.64.1"
+  },
+  "build": {
+    "appId": "jp.allsample.desktop",
+    "productName": "AllsAmple",
+    "files": [
+      "src/**/*",
+      "vendor/sampletap/**/*",
+      "package.json",
+      "LICENSE",
+      "THIRD_PARTY_NOTICES.md"
+    ],
+    "extraResources": [
+      {
+        "from": "THIRD_PARTY_NOTICES.md",
+        "to": "licenses/THIRD_PARTY_NOTICES.md"
+      },
+      {
+        "from": "licenses",
+        "to": "licenses"
+      },
+      {
+        "from": "vendor/sampletap/LICENSE",
+        "to": "licenses/SampleTap-MIT.txt"
+      },
+      {
+        "from": "LICENSE",
+        "to": "licenses/AllsAmple-MIT.txt"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.music",
+      "target": [
+        "dmg"
+      ],
+      "identity": "-",
+      "notarize": false,
+      "icon": "build/icon.icns"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "publish": null
+  },
+  "author": "nisesimadao",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nisesimadao/AllsAmple.git"
+  }
+}
