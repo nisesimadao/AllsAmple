@@ -1,3 +1,9 @@
+// Enable a newly introduced source once; preserve exclusions after it is known.
+window.AllsampleRestoreSites = (enabledSites, knownSites) => {
+  const inputs = [...document.querySelectorAll('[data-site]')];
+  const known = new Set(knownSites || inputs.map(input => input.dataset.site).filter(id => id !== 'dova'));
+  for (const input of inputs) input.checked = enabledSites.includes(input.dataset.site) || !known.has(input.dataset.site);
+};
 /* Library state belongs in the main process so metadata and IDs survive restarts together. */
 window.AllsampleLibrary = class {
   constructor({ state, api, render, select, play, prepare, stop, notify, search, labels, accept = sample => state.known.set(sample.id, sample) }) {
@@ -46,7 +52,7 @@ window.AllsampleLibrary = class {
     if (data.ui) {
       const ui = data.ui;
       if (typeof ui.query === 'string') document.querySelector('#query').value = ui.query;
-      if (Array.isArray(ui.enabledSites)) document.querySelectorAll('[data-site]').forEach(input => { input.checked = ui.enabledSites.includes(input.dataset.site); });
+      if (Array.isArray(ui.enabledSites)) AllsampleRestoreSites(ui.enabledSites, ui.knownSites);
       this.state.favoriteIds = new Set(ui.favoriteIds); this.state.history = ui.history;
       this.projects = ui.projects; this.currentProject = ui.currentProject;
       this.state.usedIds = new Set(this.projects.find(project => project.id === this.currentProject).usedIds);
@@ -61,7 +67,7 @@ window.AllsampleLibrary = class {
   syncProject() { const project = this.projects.find(project => project.id === this.currentProject); if (project) project.usedIds = [...this.state.usedIds]; }
   persist() {
     this.syncProject();
-    const snapshot = { favoriteIds: [...this.state.favoriteIds], history: this.state.history, projects: this.projects, currentProject: this.currentProject, compareIds: this.state.compareIds, blind: this.state.blind, query: document.querySelector('#query').value, enabledSites: [...document.querySelectorAll('[data-site]:checked')].map(input => input.dataset.site), volume: Number(document.querySelector('#volume').value), tempo: this.state.tempo, pitch: this.state.pitch };
+    const snapshot = { favoriteIds: [...this.state.favoriteIds], history: this.state.history, projects: this.projects, currentProject: this.currentProject, compareIds: this.state.compareIds, blind: this.state.blind, query: document.querySelector('#query').value, enabledSites: [...document.querySelectorAll('[data-site]:checked')].map(input => input.dataset.site), knownSites: [...document.querySelectorAll('[data-site]')].map(input => input.dataset.site), volume: Number(document.querySelector('#volume').value), tempo: this.state.tempo, pitch: this.state.pitch };
     this.saving = this.api.saveState(snapshot).catch(error => this.notify(error.message)); return this.saving;
   }
   renderProjects() {

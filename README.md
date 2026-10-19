@@ -27,6 +27,10 @@ Windows / macOS · 日本語UI · アカウント登録・サーバー不要
 ホバーでは音を鳴らさず、次の試聴に備えて先読みします。
 映像用・音楽用の切り替えは、サイトや絞り込み条件を用途別に記憶します。
 
+DOVA-SYNDROME（現OpenTracks）のBGM・効果音も検索できます。作者の追加条件を確認できた素材から、利用条件の表示を更新します。
+
+<img src="docs/assets/dova.png" width="100%" alt="DOVA / OpenTracksで雨を検索した結果。BGMと効果音、取得した音声の波形、素材別の利用条件">
+
 ## 並べて聴き比べる
 
 候補を **b** で4件まで比較トレイへ。**1〜4** で切り替えて聴けます。
@@ -64,6 +68,7 @@ Windows / macOS · 日本語UI · アカウント登録・サーバー不要
 | サイト | 取得する音源 |
 | --- | --- |
 | [効果音ラボ](https://soundeffect-lab.info/) | 配布MP3 |
+| [DOVA-SYNDROME / OpenTracks](https://opentracks.com/) | BGM・ジングル・効果音の配布MP3を優先 |
 | [魔王魂](https://maou.audio/) | 配布WAVを優先、なければMP3 |
 | [On-Jin ～音人～](https://on-jin.com/) | 配布MP3 |
 | [SampleFocus](https://samplefocus.com/) | 試聴MP3 |
@@ -83,7 +88,7 @@ Freesoundはキーなしでも使え、必要なら公式APIキーを設定で�
 
 ```text
 GitHub Releases → サイト取得モジュール → 次回起動時に読み込み
-                     約80 KB             本体の差し替えなし
+                     約95 KB             本体の差し替えなし
 ```
 
 ネットにつながらない場合も同梱版で動きます。取得が壊れていた場合は読み込まず、実行時に失敗した場合も同梱版に戻します。

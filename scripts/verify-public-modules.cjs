@@ -19,7 +19,7 @@ const bundled = require('../src/main/site-module.cjs');
     const ready = await manager.download(); assert.equal(ready.phase, 'ready', ready.message);
     const fresh = new ModuleUpdates(options);
     const providers = await fresh.load({ dataDir: dir, automation: {}, createNetwork: () => new SiteNetwork(), getFreesoundKey: () => null });
-    assert.equal(fresh.status().version, available.nextVersion); assert.equal(providers.length, 9);
+    assert.equal(fresh.status().version, available.nextVersion); assert.equal(providers.length, 10);
     let sample;
     for await (const item of providers.find(provider => provider.id === 'soundeffect-lab').search('雨')) { sample = item; break; }
     assert(sample && sample.audioUrl && sample.license.attribution === false);
@@ -29,6 +29,6 @@ const bundled = require('../src/main/site-module.cjs');
     const result = { verifiedAt: new Date().toISOString(), release: 'https://github.com/nisesimadao/AllsAmple/releases/tag/modules', downloadedVersion: fresh.status().version, executedProviders: providers.map(provider => provider.id), liveQuery: '雨', liveSource: { title: sample.title, pageUrl: sample.pageUrl, audioUrl: sample.audioUrl }, exportedBytes: bytes.length, exportedSha256: createHash('sha256').update(bytes).digest('hex'), byteIdentity: true, windowsOpened: false, fixtureNetwork: false };
     await fs.mkdir(path.join(root, 'output/research'), { recursive: true });
     await fs.writeFile(path.join(root, 'output/research/public-modules-verification.json'), JSON.stringify(result, null, 2) + '\n');
-    console.log(`PASS: real GitHub module ${result.downloadedVersion} executes all 9 provider constructors; live rain search exports ${bytes.length} original MP3 bytes. No window opened.`);
+    console.log(`PASS: real GitHub module ${result.downloadedVersion} executes all 10 provider constructors; live rain search exports ${bytes.length} original MP3 bytes. No window opened.`);
   } finally { await fs.rm(dir, { recursive: true, force: true }); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

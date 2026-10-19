@@ -53,7 +53,7 @@ app.whenReady().then(async () => {
   const local = new LocalFolders(dataDir); await local.restore();
   const providers = [...online, local];
   for (const sample of await catalogStore.read([])) {
-    if (/^(lab|maou|onjin|samplefocus|landr|splice|noiiz|freesound|pixabay)-[a-f0-9]{20}$/.test(sample.id)) samples.set(sample.id, sample);
+    if (/^(lab|maou|onjin|dova|samplefocus|landr|splice|noiiz|freesound|pixabay)-[a-f0-9]{20}$/.test(sample.id)) samples.set(sample.id, sample);
     // Keep project provenance after a folder is unregistered. Playback still goes
     // through LocalFolders.file(), which requires a currently registered root.
     if (/^local-[a-f0-9]{20}$/.test(sample.id) && typeof sample.localPath === 'string') samples.set(sample.id, { ...sample, available: local.catalog.has(sample.id) });
@@ -139,7 +139,7 @@ app.whenReady().then(async () => {
       } catch { metadata = { sampleRate: null }; }
     }
     const result = { duration: metadata.duration ?? measured.duration, channels: metadata.channels ?? measured.channels, sampleRate: metadata.sampleRate ?? null };
-    Object.assign(sample, result); scheduleCatalog(); return { ...result, license: sample.license, audioUrl: sample.audioUrl };
+    Object.assign(sample, result); scheduleCatalog(); return { ...result, license: sample.license, audioUrl: sample.audioUrl, ...Object.fromEntries(['isPreview', 'format', 'bpm', 'key', 'loop', 'author', 'description', 'kind'].filter(key => sample[key] !== undefined).map(key => [key, sample[key]])) };
   });
   let audioPriority = 100;
   handle('prepare', async (id, intent) => { const sample = sampleFor(id); if (sample.site === 'local' && sample.size > 128 * 1024 * 1024) throw new Error('試聴できるローカル音源は128MBまでです。保存・パスコピーは利用できます。'); if (sample.site === 'local') await fileFor(sample); else await cache.prepare(sample, { priority: intent === 'prefetch' ? 0 : ++audioPriority }); return `allsample://app/audio/${id}`; });

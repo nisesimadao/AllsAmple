@@ -6,6 +6,9 @@ const { createHash } = require('node:crypto');
 const { JsonStore } = require('./persistence.cjs');
 const FILES = require('./module-files.cjs');
 const BASE = 'https://github.com/nisesimadao/AllsAmple/releases/download/modules/';
+// A separate tiny manifest keeps the nine-site 0.1.0/0.1.1 shells on their
+// compatible modules; those shells cannot display or restore new provider IDs.
+const API = 2, MANIFEST = 'allsample-modules-v2.json';
 const LIMIT = 2 * 1024 * 1024;
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const validVersion = value => typeof value === 'string' && /^\d{1,8}(?:\.\d{1,8}){2,3}$/.test(value);
@@ -17,7 +20,7 @@ function newer(a, b) {
 function validate(bytes, manifest) {
   if (bytes.length !== manifest.bytes || bytes.length > LIMIT || hash(bytes) !== manifest.sha256) throw new Error('モジュールのダウンロードが不完全です。もう一度取得してください。');
   const bundle = JSON.parse(bytes.toString('utf8'));
-  if (bundle.api !== 1 || bundle.version !== manifest.version || !bundle.files || Object.keys(bundle.files).length !== FILES.length || FILES.some(file => typeof bundle.files[file] !== 'string')) throw new Error('このモジュールは現在のアプリに対応していません。');
+  if (bundle.api !== API || bundle.version !== manifest.version || !bundle.files || Object.keys(bundle.files).length !== FILES.length || FILES.some(file => typeof bundle.files[file] !== 'string')) throw new Error('このモジュールは現在のアプリに対応していません。');
   // Compile before storing; do not run downloaded code just to check for updates.
   for (const file of FILES.filter(file => /\.(?:cjs|js)$/.test(file))) vm.compileFunction(bundle.files[file], ['require', 'module', 'exports', '__filename', '__dirname'], { filename: file });
   return bundle;
@@ -70,8 +73,8 @@ class ModuleUpdates {
     await Promise.all(providers.map(provider => provider.restore())); return providers;
   }
   create(entry, context) {
-    if (entry.api !== 1 || typeof entry.create !== 'function') throw new Error('モジュールの形式が一致しません。');
-    const providers = entry.create(context), ids = ['soundeffect-lab', 'maou', 'onjin', 'freesound', 'pixabay', 'samplefocus', 'landr', 'splice', 'noiiz'];
+    if (entry.api !== API || typeof entry.create !== 'function') throw new Error('モジュールの形式が一致しません。');
+    const providers = entry.create(context), ids = ['soundeffect-lab', 'maou', 'onjin', 'dova', 'freesound', 'pixabay', 'samplefocus', 'landr', 'splice', 'noiiz'];
     if (!Array.isArray(providers) || providers.length !== ids.length || ids.some(id => !providers.some(provider => provider.id === id)) || providers.some(provider => typeof provider.search !== 'function' || typeof provider.restore !== 'function' || !(provider.catalog instanceof Map))) throw new Error('サイトモジュールを読み込めませんでした。');
     return providers;
   }
@@ -91,10 +94,10 @@ class ModuleUpdates {
     this.pending = (async () => {
       this.set({ phase: 'checking', message: '' });
       try {
-        const bytes = await this.request('allsample-modules.json', 4096);
+        const bytes = await this.request(MANIFEST, 4096);
         if (!bytes) { this.set({ phase: 'current', nextVersion: null, message: '追加のモジュール更新はありません。' }); return this.status(); }
         const manifest = JSON.parse(bytes);
-        if (manifest.api !== 1 || !validVersion(manifest.version) || manifest.asset !== `allsample-sites-${manifest.version}.json` || !/^[a-f0-9]{64}$/.test(manifest.sha256) || !Number.isSafeInteger(manifest.bytes) || manifest.bytes < 1 || manifest.bytes > LIMIT) throw new Error('更新情報の形式を確認できませんでした。');
+        if (manifest.api !== API || !validVersion(manifest.version) || manifest.asset !== `allsample-sites-${manifest.version}.json` || !/^[a-f0-9]{64}$/.test(manifest.sha256) || !Number.isSafeInteger(manifest.bytes) || manifest.bytes < 1 || manifest.bytes > LIMIT) throw new Error('更新情報の形式を確認できませんでした。');
         this.manifest = newer(manifest.version, this.state.version) ? manifest : null;
         this.set({ phase: this.manifest ? 'available' : 'current', nextVersion: this.manifest?.version || null, message: '' });
       } catch (error) { this.set({ phase: 'error', message: error.message }); }
@@ -127,4 +130,4 @@ class ModuleUpdates {
   }
   stop() { clearTimeout(this.timer); clearInterval(this.interval); }
 }
-module.exports = { ModuleUpdates, validate, loadBundle, newer, BASE };
+module.exports = { API, MANIFEST, ModuleUpdates, validate, loadBundle, newer, BASE };

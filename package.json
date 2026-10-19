@@ -1,6 +1,6 @@
 {
   "name": "allsample",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "音を探す。聴き比べる。制作へ。",
   "main": "src/main/index.cjs",
@@ -32,7 +32,8 @@
     "build:modules": "node scripts/build-modules.cjs",
     "assets:ui": "node scripts/generate-ui-assets.cjs",
     "docs:screenshots": "node scripts/capture-docs.cjs",
-    "test:playback": "node scripts/verify-playback.cjs"
+    "test:playback": "node scripts/verify-playback.cjs",
+    "test:dova": "node scripts/verify-dova.cjs"
   },
   "dependencies": {
     "@soundtouchjs/audio-worklet": "^2.1.1",

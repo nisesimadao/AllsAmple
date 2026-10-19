@@ -49,6 +49,14 @@ const path = require('node:path');
     await page.goto('https://allsample-ui.test/index.html');
     await page.waitForFunction(() => state.ready && !state.busy && document.querySelectorAll('.sample-row').length === 6);
     await page.evaluate(() => {
+      const enabled = [...document.querySelectorAll('[data-site]:checked')].map(input => input.dataset.site);
+      const known = [...document.querySelectorAll('[data-site]')].map(input => input.dataset.site);
+      AllsampleRestoreSites(['soundeffect-lab'], null);
+      if (!document.querySelector('[data-site=dova]').checked || document.querySelector('[data-site=maou]').checked) throw new Error('new-source migration changed existing exclusions');
+      document.querySelector('[data-site=dova]').checked = false;
+      const profile = captureProfile(); AllsampleRestoreSites(profile.sites, profile.knownSites);
+      if (document.querySelector('[data-site=dova]').checked) throw new Error('explicit DOVA exclusion was not retained');
+      AllsampleRestoreSites(enabled, known);
       for (const sample of state.results) state.info.set(sample.id, { duration: sample.duration, sampleRate: 44100, channels: 2, peaks: Array.from({ length: 240 }, (_, i) => .15 + Math.abs(Math.sin(i * .3) * Math.cos(i * .07)) * .8) });
       renderResults();
       for (const row of document.querySelectorAll('.sample-row')) {

@@ -140,17 +140,21 @@ async function prepare(sample, intent = 'interactive') {
       const previousLicense = JSON.stringify(sample.license);
       const measured = await api.metadata(sample.id, { duration: buffer.duration, channels: buffer.numberOfChannels, sampleRate: buffer.sampleRate });
       if (controller.signal.aborted || !current()) return null;
+      const resolvedKeys = ['isPreview', 'format', 'bpm', 'key', 'loop', 'author', 'description', 'kind'];
+      const presentationChanged = resolvedKeys.some(key => measured[key] !== undefined && measured[key] !== sample[key]);
+      Object.assign(sample, Object.fromEntries(resolvedKeys.filter(key => measured[key] !== undefined).map(key => [key, measured[key]])));
       const peakMax = Math.max(...peaks, .001); const info = { ...measured, peaks: peaks.map(peak => peak / peakMax), url };
       state.info.set(sample.id, info);
       Object.assign(sample, { duration: info.duration, channels: info.channels, sampleRate: info.sampleRate, license: measured.license || sample.license, audioUrl: measured.audioUrl ?? sample.audioUrl });
       // Patch the row in place to preserve keyboard focus and pointer gestures.
       const row = document.querySelector(`[data-id="${sample.id}"]`);
-      if (row) { row.draggable = true; row.querySelector('.duration').textContent = time(info.duration); const wrap = row.querySelector('.wave-wrap'); wrap.innerHTML = `<canvas class="wave-canvas" data-wave="${sample.id}" aria-label="音声の波形"></canvas>`; drawWave(wrap.firstChild, info.peaks); }
+      if (row) { const oldBadge = row.querySelector('.license-badge'); if (oldBadge) oldBadge.outerHTML = badge(sample); row.draggable = true; row.querySelector('.duration').textContent = time(info.duration); const wrap = row.querySelector('.wave-wrap'); wrap.innerHTML = `<canvas class="wave-canvas" data-wave="${sample.id}" aria-label="音声の波形"></canvas>`; drawWave(wrap.firstChild, info.peaks); }
       if (state.selected?.id === sample.id) {
-        if (previousLicense !== JSON.stringify(sample.license)) { const open = $('#detail').classList.contains('open'); state.selected = null; selectSample(sample); if (!open) $('#detail').classList.remove('open'); }
+        if (previousLicense !== JSON.stringify(sample.license) || presentationChanged) { const open = $('#detail').classList.contains('open'); state.selected = null; selectSample(sample); if (!open) $('#detail').classList.remove('open'); }
         else updateDetailAudio(sample);
       }
-      if (filterControls && Object.values(filterControls.get()).some(value => value != null && value !== false && value !== '')) renderResults();
+      if (state.playing === sample.id) playerLabels();
+      if (presentationChanged || (filterControls && Object.values(filterControls.get()).some(value => value != null && value !== false && value !== ''))) renderResults();
       return info;
     })();
     state.prepared.set(sample.id, pending); pending.finally(() => { if (waveformJobs.get(sample.id) === controller) waveformJobs.delete(sample.id); }).catch(() => {}); pending.catch(() => { if (state.prepared.get(sample.id) === pending) state.prepared.delete(sample.id); });
@@ -296,12 +300,12 @@ api.onCacheEvicted(id => { state.audioLoads.delete(id); dragReady.delete(id); })
 
 const workflowProfiles = readStored('workflowProfiles', {});
 let currentWorkflow = readStored('workflow', 'all');
-function captureProfile() { return { sites: [...document.querySelectorAll('[data-site]:checked')].map(input => input.dataset.site), kind: $('#kind').value, free: $('#price').value, noCredit: $('#no-credit').checked, commercial: $('#commercial').checked, advanced: filterControls?.get() || {} }; }
-function applyProfile(profile) { document.querySelectorAll('[data-site]').forEach(input => { input.checked = profile.sites.includes(input.dataset.site); }); $('#kind').value = profile.kind || ''; $('#price').value = profile.free || 'all'; $('#no-credit').checked = Boolean(profile.noCredit); $('#commercial').checked = Boolean(profile.commercial); filterControls?.apply(profile.advanced); }
+function captureProfile() { return { knownSites: [...document.querySelectorAll('[data-site]')].map(input => input.dataset.site), sites: [...document.querySelectorAll('[data-site]:checked')].map(input => input.dataset.site), kind: $('#kind').value, free: $('#price').value, noCredit: $('#no-credit').checked, commercial: $('#commercial').checked, advanced: filterControls?.get() || {} }; }
+function applyProfile(profile) { AllsampleRestoreSites(profile.sites, profile.knownSites); $('#kind').value = profile.kind || ''; $('#price').value = profile.free || 'all'; $('#no-credit').checked = Boolean(profile.noCredit); $('#commercial').checked = Boolean(profile.commercial); filterControls?.apply(profile.advanced); }
 function rememberWorkflow() { workflowProfiles[currentWorkflow] = captureProfile(); localStorage.setItem('workflowProfiles', JSON.stringify(workflowProfiles)); localStorage.setItem('workflow', JSON.stringify(currentWorkflow)); }
 function selectWorkflow() {
   rememberWorkflow(); currentWorkflow = $('#workflow').value;
-  const presets = { all: ['soundeffect-lab', 'maou', 'onjin', 'samplefocus', 'landr', 'splice', 'noiiz', 'freesound', 'pixabay', 'local'], video: ['soundeffect-lab', 'maou', 'onjin', 'freesound', 'pixabay', 'local'], music: ['maou', 'samplefocus', 'landr', 'splice', 'noiiz', 'freesound', 'pixabay', 'local'] };
+  const presets = { all: ['soundeffect-lab', 'dova', 'maou', 'onjin', 'samplefocus', 'landr', 'splice', 'noiiz', 'freesound', 'pixabay', 'local'], video: ['soundeffect-lab', 'dova', 'maou', 'onjin', 'freesound', 'pixabay', 'local'], music: ['dova', 'maou', 'samplefocus', 'landr', 'splice', 'noiiz', 'freesound', 'pixabay', 'local'] };
   applyProfile(workflowProfiles[currentWorkflow] || { sites: presets[currentWorkflow], kind: '', free: 'all', noCredit: false, commercial: false });
   rememberWorkflow(); search();
 }
