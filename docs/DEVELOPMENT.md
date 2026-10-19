@@ -13,6 +13,7 @@ npx playwright install chromium --only-shell  # 画面検証用。アプリの�
 npm run test:ui
 npm run test:updates
 npm run build:modules
+node scripts/verify-public-modules.cjs  # 公開済みモジュールから実サイト検索・MP3保存
 ```
 
 `npm test`はSampleTapの無改変14テストと、サイト解析、権利、保存名、永続化、キャッシュ、ストリーミング、検索、モジュール更新のテストを実行する。`test:ui`は実rendererをheadless Chromiumで動かす。IPCと音声はfixtureであり、実サイトやOS連携の確認とは区別する。
